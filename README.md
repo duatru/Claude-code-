@@ -63,3 +63,7 @@ To run it every weekday after the close, add a cron job like this (4:30pm ET):
 ```bash
 pip install pytest && python -m pytest -q tests
 ```
+
+## Browser app (no terminal needed)
+
+`app/trendbot.html` is the same rule as a point-and-click page: today's IN/OUT signal, what to do given where your money is now, a price chart, the back-test, and a list of every switch. Download a price file (Stooq, Nasdaq, or Yahoo Finance), drop it on the page, and it does the rest. It doesn't place trades; you do that in your brokerage app.

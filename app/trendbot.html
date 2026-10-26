@@ -1,0 +1,703 @@
+<title>TrendBot</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column. Signal + today's action on top, chart, then the back-test and history, then the how-to. */
+:root {
+  --bg: #f3f5f6;
+  --panel: #ffffff;
+  --ink: #12202b;
+  --ink-2: #4a5864;
+  --ink-3: #74818c;
+  --line: #dde3e7;
+  --accent: #0f5f74;
+  --accent-ink: #ffffff;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --cash-band: #e7ebee;
+  --good: #11804a;
+  --good-bg: #e3f4ea;
+  --bad: #c0392b;
+  --bad-bg: #fbe7e4;
+  --warn: #8a5a00;
+  --warn-bg: #fff3d6;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1418; --panel: #171e24; --ink: #e8edf0; --ink-2: #aab6bf; --ink-3: #85929c; --line: #2a343c;
+    --accent: #5fb7cc; --accent-ink: #0b1216; --series-1: #3987e5; --series-2: #d95926; --cash-band: #222b32;
+    --good: #4cc983; --good-bg: #133222; --bad: #f07a6c; --bad-bg: #3a1a17; --warn: #f0c260; --warn-bg: #352a10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1418; --panel: #171e24; --ink: #e8edf0; --ink-2: #aab6bf; --ink-3: #85929c; --line: #2a343c;
+  --accent: #5fb7cc; --accent-ink: #0b1216; --series-1: #3987e5; --series-2: #d95926; --cash-band: #222b32;
+  --good: #4cc983; --good-bg: #133222; --bad: #f07a6c; --bad-bg: #3a1a17; --warn: #f0c260; --warn-bg: #352a10;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 20px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 26px; font-weight: 800; }
+h2 { font-size: 18px; font-weight: 600; }
+p { margin: 0; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-3); font-weight: 600; }
+.muted { color: var(--ink-2); }
+a { color: var(--accent); }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.brand .tag { color: var(--ink-2); font-size: 14px; }
+.source { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; background: var(--panel); border: 1px solid var(--line); }
+.chip.sample { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; min-width: 0; }
+
+/* Signal row */
+.signal-row { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
+@media (max-width: 760px) { .signal-row { grid-template-columns: 1fr; } }
+.signal { display: grid; gap: 16px; }
+.signal-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pill { font-family: var(--font-display); font-weight: 800; font-size: 30px; padding: 4px 18px; border-radius: 10px; letter-spacing: 0.02em; }
+.pill.in { background: var(--good-bg); color: var(--good); }
+.pill.out { background: var(--bad-bg); color: var(--bad); }
+.signal-head .why { color: var(--ink-2); max-width: 36ch; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; }
+.fact .v { font-size: 20px; font-weight: 500; }
+.gauge { display: grid; gap: 6px; }
+.gauge-track { position: relative; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--bad-bg) 0 45%, var(--cash-band) 45% 55%, var(--good-bg) 55% 100%); }
+.gauge-dot { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; background: var(--ink); border: 3px solid var(--panel); transform: translate(-50%, -50%); }
+.gauge-scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); }
+
+.todo { display: grid; gap: 14px; align-content: start; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 7px 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.action { border-radius: 10px; padding: 16px; display: grid; gap: 4px; }
+.action .verb { font-family: var(--font-display); font-weight: 800; font-size: 24px; }
+.action.go { background: var(--good-bg); color: var(--good); }
+.action.stop { background: var(--bad-bg); color: var(--bad); }
+.action.hold { background: var(--cash-band); color: var(--ink); }
+.action p { color: var(--ink); }
+.notice { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+
+/* Charts */
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.sw.box { height: 12px; width: 14px; border-radius: 3px; }
+.chart { position: relative; width: 100%; height: 300px; }
+.chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.chart text { fill: var(--ink-3); font-family: var(--font-mono); font-size: 11px; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.12); white-space: nowrap; z-index: 2; }
+.tip .row { display: flex; align-items: center; gap: 6px; }
+.tip .row b { margin-left: auto; padding-left: 12px; font-family: var(--font-mono); font-weight: 500; }
+
+/* Back-test */
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+.settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 13px; color: var(--ink-2); }
+.field input { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 7px 9px; width: 100%; }
+.field small { color: var(--ink-3); font-size: 12px; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-size: 12px; color: var(--ink-3); font-weight: 600; }
+td.better { font-weight: 600; }
+.verdict { margin-top: 12px; color: var(--ink-2); }
+
+.history { display: grid; gap: 0; margin-top: 10px; max-height: 340px; overflow-y: auto; }
+.history-row { display: grid; grid-template-columns: 110px 70px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; align-items: center; }
+.tiny-pill { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px; text-align: center; }
+.tiny-pill.in { background: var(--good-bg); color: var(--good); }
+.tiny-pill.out { background: var(--bad-bg); color: var(--bad); }
+
+/* Loader */
+.drop { border: 2px dashed var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 10px; justify-items: start; }
+.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { text-decoration: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-size: 14px; }
+.links a:hover { border-color: var(--accent); }
+.err { color: var(--bad); font-size: 14px; }
+.fine { font-size: 13px; color: var(--ink-3); }
+.ticker-input { width: 90px; text-transform: uppercase; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 6px 8px; }
+details summary { cursor: pointer; font-weight: 600; }
+details[open] summary { margin-bottom: 10px; }
+.caveats { display: grid; gap: 10px; margin: 0; padding-left: 20px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>TrendBot</h1>
+      <span class="tag">In when the market trends up. Cash when it trends down.</span>
+    </div>
+    <div class="source">
+      <span id="sourceChip" class="chip"></span>
+      <button class="btn primary" id="loadBtn" type="button">Load real prices</button>
+    </div>
+  </header>
+
+  <section class="signal-row">
+    <div class="panel signal" aria-live="polite">
+      <div class="label" id="signalLabel">Signal</div>
+      <div class="signal-head">
+        <span class="pill" id="pill">IN</span>
+        <p class="why" id="why"></p>
+      </div>
+      <div class="facts">
+        <div class="fact"><div class="label">Last close</div><div class="v num" id="fClose"></div></div>
+        <div class="fact"><div class="label" id="fAvgLabel">200-day average</div><div class="v num" id="fAvg"></div></div>
+        <div class="fact"><div class="label">Price vs average</div><div class="v num" id="fGap"></div></div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-track"><div class="gauge-dot" id="gaugeDot"></div></div>
+        <div class="gauge-scale"><span>Sell below <b class="num" id="sellLine"></b></span><span>Buy above <b class="num" id="buyLine"></b></span></div>
+      </div>
+      <p class="fine" id="lastSwitch"></p>
+    </div>
+
+    <div class="panel todo">
+      <h2>What to do today</h2>
+      <div>
+        <div class="label" style="margin-bottom:6px">Right now my money is</div>
+        <div class="seg" role="group" aria-label="Where your money is now">
+          <button type="button" id="posIn" aria-pressed="true">Invested</button>
+          <button type="button" id="posOut" aria-pressed="false">In cash</button>
+        </div>
+      </div>
+      <div class="action" id="action"><span class="verb" id="actVerb"></span><p id="actText"></p></div>
+      <div class="notice" id="staleNotice" hidden></div>
+      <p class="fine">Check once a day after the market closes (4pm Eastern). Place the trade yourself in your brokerage app.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="chart-head">
+      <h2 id="priceTitle">Price and its 200-day average</h2>
+      <div class="seg" role="group" aria-label="Chart range">
+        <button type="button" data-range="1" aria-pressed="false">1Y</button>
+        <button type="button" data-range="5" aria-pressed="true">5Y</button>
+        <button type="button" data-range="0" aria-pressed="false">All</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--series-1)"></i>Price</span>
+      <span><i class="sw" style="background:var(--series-2)"></i><span id="avgLegend">200-day average</span></span>
+      <span><i class="sw box" style="background:var(--cash-band);border:1px solid var(--line)"></i>Bot is in cash</span>
+    </div>
+    <div class="chart" id="priceChart"></div>
+  </section>
+
+  <section class="two">
+    <div class="panel">
+      <h2>How the rule did in the past</h2>
+      <p class="muted" id="btRange" style="margin-top:4px"></p>
+      <div class="table-scroll" style="margin-top:12px">
+        <table>
+          <thead><tr><th></th><th>TrendBot</th><th>Buy &amp; hold</th></tr></thead>
+          <tbody id="btBody"></tbody>
+        </table>
+      </div>
+      <p class="verdict" id="verdict"></p>
+      <details style="margin-top:14px">
+        <summary>Adjust the rule</summary>
+        <div class="settings">
+          <div class="field"><label for="setWindow">Average length (days)</label><input id="setWindow" type="number" min="20" max="400" step="10" value="200"><small>200 is the classic choice</small></div>
+          <div class="field"><label for="setBand">Buffer (%)</label><input id="setBand" type="number" min="0" max="10" step="0.5" value="1"><small>Bigger means fewer switches</small></div>
+          <div class="field"><label for="setCash">Cash yield (%/yr)</label><input id="setCash" type="number" min="0" max="10" step="0.5" value="2"><small>What cash earns while out</small></div>
+          <div class="field"><label for="setStart">Test from</label><input id="setStart" type="date"><small>Blank means all data</small></div>
+        </div>
+        <button class="btn" type="button" id="resetBtn" style="margin-top:12px">Reset to defaults</button>
+      </details>
+    </div>
+    <div class="panel">
+      <h2>$10,000 over time</h2>
+      <div class="legend" style="margin-top:6px">
+        <span><i class="sw" style="background:var(--series-1)"></i>TrendBot</span>
+        <span><i class="sw" style="background:var(--series-2)"></i>Buy &amp; hold</span>
+      </div>
+      <div class="chart" id="equityChart" style="height:260px"></div>
+    </div>
+  </section>
+
+  <section class="two">
+    <div class="panel">
+      <h2>Every switch</h2>
+      <p class="muted" id="switchCount" style="margin-top:4px"></p>
+      <div class="history" id="history"></div>
+    </div>
+
+    <div class="panel" id="loader">
+      <h2>Load real prices</h2>
+      <p class="muted" style="margin-top:4px">The app can't download prices by itself, so you grab a price file from a free site and drop it here. It takes about a minute.</p>
+      <ol class="steps" style="margin-top:12px">
+        <li>Type the fund or stock symbol: <input class="ticker-input" id="ticker" value="SPY" maxlength="10" aria-label="Symbol"> <span class="fine">(SPY tracks the S&amp;P 500)</span></li>
+        <li>Download its daily price history from one of these. If one doesn't work, try the next.
+          <div class="links" style="margin-top:8px">
+            <a id="linkStooq" target="_blank" rel="noopener">Stooq (CSV)</a>
+            <a id="linkNasdaq" target="_blank" rel="noopener">Nasdaq</a>
+            <a id="linkYahoo" target="_blank" rel="noopener">Yahoo Finance</a>
+          </div>
+          <span class="fine">On Nasdaq or Yahoo, pick the longest time period, then click Download.</span>
+        </li>
+        <li>Drop the downloaded file here, or choose it:
+          <div class="drop" id="drop" style="margin-top:8px">
+            <input type="file" id="file" accept=".csv,text/csv,text/plain" hidden>
+            <button class="btn primary" type="button" id="chooseBtn">Choose price file</button>
+            <span class="fine">Any CSV with a date column and a closing-price column works. You need at least a year of prices.</span>
+          </div>
+        </li>
+      </ol>
+      <p class="err" id="loadErr" hidden></p>
+      <p class="fine" style="margin-top:12px">Your file stays in this browser. Nothing is uploaded or shared.</p>
+      <button class="btn" type="button" id="sampleBtn" style="margin-top:10px" hidden>Go back to sample data</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>How the rule works, and what to watch out for</summary>
+      <ul class="caveats">
+        <li><b>The rule.</b> TrendBot compares each day's closing price to the average of the last 200 closes. It says <b>IN</b> once the price closes more than 1% above that average and <b>OUT</b> once it closes more than 1% below. In between, it keeps its last answer, so small wiggles don't make it flip.</li>
+        <li><b>It's always a little late.</b> It sells after a drop has started and buys after a recovery has started. It's built to get you out of long, deep slides like 2008, not to catch tops and bottoms.</li>
+        <li><b>Sideways markets cost money.</b> When prices bounce around the average, it can sell low and buy back higher a few times in a row.</li>
+        <li><b>It often makes less than holding</b> during long rising markets. What it usually gives you is a smaller worst-case drop.</li>
+        <li><b>Taxes.</b> In a regular brokerage account each sale can be taxable. In an IRA or 401(k) it isn't.</li>
+        <li><b>The back-test</b> acts on each signal at the next day's close, charges 0.05% per switch, and assumes cash earns the yield you set. Past results don't guarantee future ones. This is a tool, not financial advice.</li>
+      </ul>
+    </details>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var DEFAULTS = { window: 200, band: 1, cash: 2, start: "" };
+  var COST = 0.0005, TD = 252;
+  var state = { data: null, isSample: true, ticker: "SPY", position: "in", range: 5, settings: Object.assign({}, DEFAULTS) };
+
+  // ---------- storage (per-viewer conveniences only) ----------
+  function load(key) { try { var v = localStorage.getItem("trendbot:" + key); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function save(key, val) { try { localStorage.setItem("trendbot:" + key, JSON.stringify(val)); } catch (e) {} }
+
+  // ---------- sample data (made up, clearly labelled) ----------
+  function sampleData() {
+    var seed = 42;
+    function rnd() { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+    function gauss() { return Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd()); }
+    var dates = [], closes = [], d = new Date(Date.UTC(2014, 0, 2)), p = 100, i = 0;
+    var end = new Date(); end = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+    while (d.getTime() <= end) {
+      var wd = d.getUTCDay();
+      if (wd !== 0 && wd !== 6) {
+        var drift = 0.00045, vol = 0.009;
+        if (i > 1500 && i < 1640) { drift = -0.0028; vol = 0.022; }      // a crash
+        else if (i > 2200 && i < 2420) { drift = -0.0011; vol = 0.014; } // a slow bear market
+        else if (i > 2700 && i < 2800) { drift = 0; vol = 0.012; }        // choppy sideways stretch
+        p *= Math.exp(drift + vol * gauss());
+        dates.push(d.getTime()); closes.push(p); i++;
+      }
+      d = new Date(d.getTime() + 864e5);
+    }
+    return { dates: dates, closes: closes };
+  }
+
+  // ---------- CSV parsing ----------
+  function splitCsvLine(line) {
+    var out = [], cur = "", q = false;
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (c === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+      else if ((c === "," || c === ";" || c === "\t") && !q) { out.push(cur); cur = ""; }
+      else cur += c;
+    }
+    out.push(cur);
+    return out.map(function (s) { return s.trim(); });
+  }
+  function parseDate(s) {
+    s = s.replace(/"/g, "").trim();
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return Date.UTC(+m[3], +m[1] - 1, +m[2]);
+    var t = Date.parse(s);
+    if (isNaN(t)) return null;
+    var dt = new Date(t);
+    return Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  }
+  function parseNum(s) { var n = parseFloat(String(s).replace(/[$,\s"]/g, "")); return isFinite(n) && n > 0 ? n : null; }
+  function parseCsv(text) {
+    var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (lines.length < 2) throw new Error("That file looks empty.");
+    var head = splitCsvLine(lines[0]).map(function (h) { return h.toLowerCase().replace(/[^a-z\/ ]/g, "").trim(); });
+    var di = head.findIndex(function (h) { return h === "date" || h.indexOf("date") === 0; });
+    var ci = head.findIndex(function (h) { return h === "adj close" || h === "adjclose"; });
+    if (ci < 0) ci = head.findIndex(function (h) { return h === "close" || h === "close/last" || h === "closelast" || h === "price" || h === "last"; });
+    if (ci < 0) ci = head.findIndex(function (h) { return h.indexOf("close") >= 0; });
+    if (di < 0 || ci < 0) throw new Error("Couldn't find a Date column and a Close column. Make sure you downloaded daily price history.");
+    var rows = [];
+    for (var i = 1; i < lines.length; i++) {
+      var f = splitCsvLine(lines[i]);
+      var d = parseDate(f[di] || ""), c = parseNum(f[ci]);
+      if (d !== null && c !== null) rows.push([d, c]);
+    }
+    rows.sort(function (a, b) { return a[0] - b[0]; });
+    var dates = [], closes = [];
+    rows.forEach(function (r) { if (!dates.length || r[0] !== dates[dates.length - 1]) { dates.push(r[0]); closes.push(r[1]); } });
+    if (dates.length < 260) throw new Error("Only " + dates.length + " days of prices found. Download at least a year (ideally the longest period available).");
+    return { dates: dates, closes: closes };
+  }
+
+  // ---------- strategy (same rule as trendbot.py) ----------
+  function computeSignals(closes, win, band) {
+    var n = closes.length, sma = new Array(n).fill(null), pos = new Array(n).fill(0), sum = 0, st = 0;
+    for (var i = 0; i < n; i++) {
+      sum += closes[i];
+      if (i >= win) sum -= closes[i - win];
+      if (i >= win - 1) {
+        sma[i] = sum / win;
+        if (closes[i] > sma[i] * (1 + band)) st = 1;
+        else if (closes[i] < sma[i] * (1 - band)) st = 0;
+      }
+      pos[i] = st;
+    }
+    return { sma: sma, pos: pos };
+  }
+  function backtest(dates, closes, sig, win, cashRate, startTs) {
+    var first = win - 1;
+    var cashDay = Math.pow(1 + cashRate, 1 / TD) - 1;
+    var strat = [1], hold = [1], held = [0], idx = [first];
+    for (var i = first + 1; i < closes.length; i++) {
+      var h = sig.pos[i - 1], prevH = held[held.length - 1];
+      var r = closes[i] / closes[i - 1] - 1;
+      var sr = h * r + (1 - h) * cashDay - Math.abs(h - prevH) * COST;
+      strat.push(strat[strat.length - 1] * (1 + sr));
+      hold.push(hold[hold.length - 1] * (1 + r));
+      held.push(h); idx.push(i);
+    }
+    var k = 0;
+    if (startTs) { while (k < idx.length - 1 && dates[idx[k]] < startTs) k++; }
+    var s0 = strat[k], h0 = hold[k];
+    return {
+      idx: idx.slice(k), held: held.slice(k),
+      strat: strat.slice(k).map(function (v) { return v / s0; }),
+      hold: hold.slice(k).map(function (v) { return v / h0; })
+    };
+  }
+  function perf(eq) {
+    var n = eq.length - 1, years = n / TD, total = eq[n] / eq[0] - 1;
+    var peak = eq[0], dd = 0, rets = [];
+    for (var i = 1; i <= n; i++) { peak = Math.max(peak, eq[i]); dd = Math.min(dd, eq[i] / peak - 1); rets.push(eq[i] / eq[i - 1] - 1); }
+    var mean = rets.reduce(function (a, b) { return a + b; }, 0) / rets.length;
+    var sd = Math.sqrt(rets.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / (rets.length - 1));
+    return { total: total, cagr: years > 0 ? Math.pow(1 + total, 1 / years) - 1 : 0, dd: dd, vol: sd * Math.sqrt(TD) };
+  }
+
+  // ---------- formatting ----------
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtDate(ts) { var d = new Date(ts); return MONTHS[d.getUTCMonth()] + " " + d.getUTCDate() + ", " + d.getUTCFullYear(); }
+  function fmtPrice(v) { return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtPct(v, signed) { var s = (v * 100).toFixed(1) + "%"; return signed && v > 0 ? "+" + s : s.replace("-", "−"); }
+  function fmtMoney(v) { return "$" + Math.round(v).toLocaleString("en-US"); }
+  function $(id) { return document.getElementById(id); }
+
+  // ---------- charts ----------
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function niceTicks(min, max, count) {
+    var span = max - min || 1, step = Math.pow(10, Math.floor(Math.log10(span / count))), err = span / count / step;
+    if (err >= 7.5) step *= 10; else if (err >= 3.5) step *= 5; else if (err >= 1.5) step *= 2;
+    var out = []; for (var v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(v);
+    return out;
+  }
+  function yearTicks(t0, t1, maxTicks) {
+    var y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear(), years = y1 - y0 + 1;
+    if (years <= 2) {
+      var out = [], d = new Date(Date.UTC(y0, new Date(t0).getUTCMonth() + 1, 1));
+      while (d.getTime() <= t1) { out.push({ t: d.getTime(), label: MONTHS[d.getUTCMonth()] + (d.getUTCMonth() === 0 ? " " + d.getUTCFullYear() : "") }); d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 3, 1)); }
+      return out;
+    }
+    var every = Math.max(1, Math.ceil(years / maxTicks)), res = [];
+    for (var y = y0 + 1; y <= y1; y++) if ((y - y0 - 1) % every === 0) res.push({ t: Date.UTC(y, 0, 1), label: String(y) });
+    return res;
+  }
+
+  // series: [{name, color, values}], bands: [[t0,t1]], fmtY: fn
+  function lineChart(host, dates, series, bands, fmtY, fmtTipY) {
+    host.innerHTML = "";
+    var W = host.clientWidth, H = host.clientHeight;
+    if (W < 50) return;
+    var m = { l: 56, r: 12, t: 10, b: 26 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var t0 = dates[0], t1 = dates[dates.length - 1];
+    var lo = Infinity, hi = -Infinity;
+    series.forEach(function (s) { s.values.forEach(function (v) { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }); });
+    var pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
+    var yt = niceTicks(lo, hi, 5);
+    function x(t) { return m.l + (t - t0) / (t1 - t0 || 1) * iw; }
+    function y(v) { return m.t + (1 - (v - lo) / (hi - lo)) * ih; }
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": series.map(function (s) { return s.name; }).join(" and ") + " chart" }, host);
+    bands.forEach(function (b) { el("rect", { x: x(b[0]), y: m.t, width: Math.max(1, x(b[1]) - x(b[0])), height: ih, fill: "var(--cash-band)" }, svg); });
+    yt.forEach(function (v) {
+      el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: "var(--line)", "stroke-width": 1 }, svg);
+      var tx = el("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end" }, svg); tx.textContent = fmtY(v);
+    });
+    yearTicks(t0, t1, Math.max(2, Math.floor(iw / 70))).forEach(function (tk) {
+      var tx = el("text", { x: x(tk.t), y: H - 6, "text-anchor": "middle" }, svg); tx.textContent = tk.label;
+    });
+    // Downsample to about 2 points per pixel to keep paths light.
+    var step = Math.max(1, Math.floor(dates.length / (iw * 2)));
+    series.forEach(function (s) {
+      var d = "", pen = false;
+      for (var i = 0; i < dates.length; i += step) {
+        var v = s.values[i];
+        if (v == null) { pen = false; continue; }
+        d += (pen ? "L" : "M") + x(dates[i]).toFixed(1) + " " + y(v).toFixed(1); pen = true;
+      }
+      var li = dates.length - 1;
+      if (s.values[li] != null) d += (pen ? "L" : "M") + x(dates[li]).toFixed(1) + " " + y(s.values[li]).toFixed(1);
+      el("path", { d: d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      if (s.values[li] != null) el("circle", { cx: x(dates[li]), cy: y(s.values[li]), r: 4, fill: s.color, stroke: "var(--panel)", "stroke-width": 2 }, svg);
+    });
+    // Hover layer
+    var cross = el("line", { y1: m.t, y2: m.t + ih, stroke: "var(--ink-3)", "stroke-width": 1, "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
+    var dots = series.map(function (s) { return el("circle", { r: 4, fill: s.color, stroke: "var(--panel)", "stroke-width": 2, visibility: "hidden" }, svg); });
+    var tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; host.appendChild(tip);
+    var hit = el("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent" }, svg);
+    function move(ev) {
+      var r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * (W / r.width);
+      var t = t0 + (px - m.l) / iw * (t1 - t0), lo2 = 0, hi2 = dates.length - 1;
+      while (hi2 - lo2 > 1) { var mid = (lo2 + hi2) >> 1; if (dates[mid] < t) lo2 = mid; else hi2 = mid; }
+      var i = Math.abs(dates[lo2] - t) < Math.abs(dates[hi2] - t) ? lo2 : hi2, cx = x(dates[i]);
+      cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("visibility", "visible");
+      tip.innerHTML = "";
+      var head = document.createElement("div"); head.style.fontWeight = "600"; head.style.marginBottom = "4px"; head.textContent = fmtDate(dates[i]); tip.appendChild(head);
+      series.forEach(function (s, k) {
+        var v = s.values[i];
+        if (v == null) { dots[k].setAttribute("visibility", "hidden"); return; }
+        dots[k].setAttribute("cx", cx); dots[k].setAttribute("cy", y(v)); dots[k].setAttribute("visibility", "visible");
+        var row = document.createElement("div"); row.className = "row";
+        var sw = document.createElement("i"); sw.className = "sw"; sw.style.background = s.color;
+        var nm = document.createElement("span"); nm.textContent = s.name;
+        var val = document.createElement("b"); val.textContent = fmtTipY(v);
+        row.appendChild(sw); row.appendChild(nm); row.appendChild(val); tip.appendChild(row);
+      });
+      tip.hidden = false;
+      var tw = tip.offsetWidth, left = cx * (r.width / W) + 12;
+      if (left + tw > r.width) left = cx * (r.width / W) - tw - 12;
+      tip.style.left = Math.max(0, left) + "px"; tip.style.top = "8px";
+    }
+    function leave() { cross.setAttribute("visibility", "hidden"); dots.forEach(function (d) { d.setAttribute("visibility", "hidden"); }); tip.hidden = true; }
+    hit.addEventListener("pointermove", move); hit.addEventListener("pointerdown", move); hit.addEventListener("pointerleave", leave);
+  }
+
+  // ---------- render ----------
+  function render() {
+    var s = state.settings, D = state.data, n = D.closes.length;
+    var win = Math.max(20, Math.min(400, Math.round(+s.window) || 200));
+    var band = Math.max(0, +s.band || 0) / 100, cash = Math.max(0, +s.cash || 0) / 100;
+    if (n < win + 2) win = Math.max(20, n - 60);
+    var sig = computeSignals(D.closes, win, band);
+    var last = n - 1, close = D.closes[last], avg = sig.sma[last], isIn = sig.pos[last] === 1, gap = close / avg - 1;
+
+    $("sourceChip").className = "chip" + (state.isSample ? " sample" : "");
+    $("sourceChip").textContent = state.isSample ? "Sample data (made up)" : state.ticker + " · " + n.toLocaleString() + " days through " + fmtDate(D.dates[last]);
+    $("sampleBtn").hidden = state.isSample;
+    $("signalLabel").textContent = (state.isSample ? "Sample signal" : state.ticker + " signal") + " as of " + fmtDate(D.dates[last]);
+    $("pill").textContent = isIn ? "IN" : "OUT";
+    $("pill").className = "pill " + (isIn ? "in" : "out");
+    $("why").textContent = isIn ? "The market is in an uptrend. The bot stays invested." : "The market is in a downtrend. The bot sits in cash.";
+    $("fClose").textContent = fmtPrice(close);
+    $("fAvgLabel").textContent = win + "-day average";
+    $("fAvg").textContent = fmtPrice(avg);
+    $("fGap").textContent = fmtPct(gap, true);
+    $("fGap").style.color = gap >= 0 ? "var(--good)" : "var(--bad)";
+    $("buyLine").textContent = fmtPrice(avg * (1 + band));
+    $("sellLine").textContent = fmtPrice(avg * (1 - band));
+    // Gauge spans -10%..+10% around the average.
+    $("gaugeDot").style.left = Math.max(2, Math.min(98, 50 + gap * 500)) + "%";
+    var bLo = Math.max(0, 50 - band * 500), bHi = Math.min(100, 50 + band * 500);
+    document.querySelector(".gauge-track").style.background = "linear-gradient(90deg, var(--bad-bg) 0 " + bLo + "%, var(--cash-band) " + bLo + "% " + bHi + "%, var(--good-bg) " + bHi + "% 100%)";
+    var lastFlip = -1;
+    for (var i = last; i > win; i--) if (sig.pos[i] !== sig.pos[i - 1]) { lastFlip = i; break; }
+    $("lastSwitch").textContent = lastFlip > 0 ? "Last switched to " + (sig.pos[lastFlip] ? "IN" : "OUT") + " on " + fmtDate(D.dates[lastFlip]) + "." : "No switches in this data.";
+
+    // Today's action
+    $("posIn").setAttribute("aria-pressed", String(state.position === "in"));
+    $("posOut").setAttribute("aria-pressed", String(state.position === "out"));
+    var invested = state.position === "in", a;
+    if (isIn && invested) a = ["hold", "Hold", "Stay invested. Nothing to do today."];
+    else if (isIn && !invested) a = ["go", "Buy", "The trend turned up. Move your cash back into " + (state.isSample ? "the fund" : state.ticker) + "."];
+    else if (!isIn && invested) a = ["stop", "Sell", "The trend turned down. Sell " + (state.isSample ? "the fund" : state.ticker) + " and hold cash or a money-market fund."];
+    else a = ["hold", "Wait", "Stay in cash. Nothing to do today."];
+    $("action").className = "action " + a[0]; $("actVerb").textContent = a[1]; $("actText").textContent = a[2];
+    var ageDays = (Date.now() - D.dates[last]) / 864e5, notice = $("staleNotice");
+    if (state.isSample) { notice.hidden = false; notice.textContent = "This is made-up sample data. Load real prices to get a real signal."; }
+    else if (ageDays > 4) { notice.hidden = false; notice.textContent = "Your price file ends on " + fmtDate(D.dates[last]) + ". Download a fresh one to get today's signal."; }
+    else notice.hidden = true;
+
+    // Price chart
+    var from = 0;
+    if (state.range) { var cut = D.dates[last] - state.range * 365.25 * 864e5; while (from < last && D.dates[from] < cut) from++; }
+    var dts = D.dates.slice(from), bands = [], startOut = null;
+    for (var j = from; j <= last; j++) {
+      var out = sig.sma[j] != null && sig.pos[j] === 0;
+      if (out && startOut === null) startOut = D.dates[j];
+      if ((!out || j === last) && startOut !== null) { bands.push([startOut, D.dates[j]]); startOut = null; }
+    }
+    $("priceTitle").textContent = "Price and its " + win + "-day average";
+    $("avgLegend").textContent = win + "-day average";
+    lineChart($("priceChart"), dts, [
+      { name: "Price", color: "var(--series-1)", values: D.closes.slice(from) },
+      { name: win + "-day avg", color: "var(--series-2)", values: sig.sma.slice(from) }
+    ], bands, function (v) { return v >= 1000 ? Math.round(v).toLocaleString() : (Math.abs(v - Math.round(v)) < 1e-6 ? String(Math.round(v)) : v.toFixed(1)); }, fmtPrice);
+
+    // Back-test
+    var startTs = s.start ? parseDate(s.start) : null;
+    var bt = backtest(D.dates, D.closes, sig, win, cash, startTs);
+    var tbody = $("btBody");
+    if (bt.strat.length < 30) {
+      tbody.innerHTML = "<tr><td colspan='3'>Not enough data after that start date.</td></tr>";
+      $("verdict").textContent = ""; $("btRange").textContent = ""; $("equityChart").innerHTML = "";
+    } else {
+      var ps = perf(bt.strat), ph = perf(bt.hold);
+      var switches = 0; for (var q = 1; q < bt.held.length; q++) if (bt.held[q] !== bt.held[q - 1]) switches++;
+      var inv = bt.held.reduce(function (x, y) { return x + y; }, 0) / bt.held.length;
+      var d0 = D.dates[bt.idx[0]], d1 = D.dates[bt.idx[bt.idx.length - 1]];
+      $("btRange").textContent = fmtDate(d0) + " to " + fmtDate(d1) + (state.isSample ? " (sample data)" : "");
+      var rows = [
+        ["$10,000 became", fmtMoney(1e4 * bt.strat[bt.strat.length - 1]), fmtMoney(1e4 * bt.hold[bt.hold.length - 1]), ps.total > ph.total],
+        ["Return per year", fmtPct(ps.cagr, true), fmtPct(ph.cagr, true), ps.cagr > ph.cagr],
+        ["Worst drop", fmtPct(ps.dd), fmtPct(ph.dd), ps.dd > ph.dd],
+        ["Ups and downs (volatility)", fmtPct(ps.vol), fmtPct(ph.vol), ps.vol < ph.vol],
+        ["Switches", String(switches), "0", null],
+        ["Time invested", Math.round(inv * 100) + "%", "100%", null]
+      ];
+      tbody.innerHTML = "";
+      rows.forEach(function (r) {
+        var tr = document.createElement("tr");
+        [r[0], r[1], r[2]].forEach(function (c, ci) {
+          var td = document.createElement("td"); td.textContent = c;
+          if (ci > 0) td.className = "num" + ((r[3] === true && ci === 1) || (r[3] === false && ci === 2) ? " better" : "");
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      var more = ps.total > ph.total;
+      $("verdict").textContent = (more ? "TrendBot ended with more money" : "Buy & hold ended with more money") +
+        ", and TrendBot's worst drop was " + fmtPct(Math.abs(ps.dd)) + " versus " + fmtPct(Math.abs(ph.dd)) + " for holding. Bold marks the better number.";
+      lineChart($("equityChart"), bt.idx.map(function (k) { return D.dates[k]; }), [
+        { name: "TrendBot", color: "var(--series-1)", values: bt.strat.map(function (v) { return v * 1e4; }) },
+        { name: "Buy & hold", color: "var(--series-2)", values: bt.hold.map(function (v) { return v * 1e4; }) }
+      ], [], function (v) { return v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + Math.round(v / 1000) + "k"; }, fmtMoney);
+    }
+
+    // Switch history (newest first)
+    var hist = $("history"); hist.innerHTML = ""; var flips = [];
+    for (var f = win; f <= last; f++) if (sig.pos[f] !== sig.pos[f - 1]) flips.push(f);
+    $("switchCount").textContent = flips.length + " switches in " + ((D.dates[last] - D.dates[win - 1]) / 3.156e10).toFixed(1) + " years. Price shown is the close on the switch day.";
+    flips.reverse().forEach(function (f) {
+      var row = document.createElement("div"); row.className = "history-row";
+      var dt = document.createElement("span"); dt.className = "num"; dt.textContent = fmtDate(D.dates[f]);
+      var pl = document.createElement("span"); pl.className = "tiny-pill " + (sig.pos[f] ? "in" : "out"); pl.textContent = sig.pos[f] ? "BUY" : "SELL";
+      var pr = document.createElement("span"); pr.className = "num muted"; pr.textContent = fmtPrice(D.closes[f]);
+      row.appendChild(dt); row.appendChild(pl); row.appendChild(pr); hist.appendChild(row);
+    });
+  }
+
+  // ---------- loading ----------
+  function updateLinks() {
+    var t = ($("ticker").value || "SPY").trim().toUpperCase().replace(/[^A-Z0-9.\-^]/g, "") || "SPY";
+    state.ticker = t;
+    $("linkStooq").href = "https://stooq.com/q/d/l/?s=" + encodeURIComponent(t.toLowerCase()) + ".us&i=d";
+    $("linkNasdaq").href = "https://www.nasdaq.com/market-activity/stocks/" + encodeURIComponent(t.toLowerCase()) + "/historical";
+    $("linkYahoo").href = "https://finance.yahoo.com/quote/" + encodeURIComponent(t) + "/history/";
+  }
+  function handleFile(file) {
+    var err = $("loadErr"); err.hidden = true;
+    if (!file) return;
+    var fr = new FileReader();
+    fr.onload = function () {
+      try {
+        var data = parseCsv(String(fr.result));
+        state.data = data; state.isSample = false;
+        var guess = file.name.match(/^([A-Za-z]{1,5})[\s._-]/);
+        if (guess && !/^(hist|data|price|chart|quote|table|download)/i.test(guess[1])) { state.ticker = guess[1].toUpperCase(); $("ticker").value = state.ticker; updateLinks(); }
+        save("data", { ticker: state.ticker, dates: data.dates, closes: data.closes });
+        render();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) { err.textContent = e.message; err.hidden = false; }
+    };
+    fr.onerror = function () { err.textContent = "Couldn't read that file. Try downloading it again."; err.hidden = false; };
+    fr.readAsText(file);
+  }
+
+  // ---------- wiring ----------
+  $("loadBtn").addEventListener("click", function () { $("loader").scrollIntoView({ behavior: "smooth", block: "start" }); $("ticker").focus({ preventScroll: true }); });
+  $("chooseBtn").addEventListener("click", function () { $("file").click(); });
+  $("file").addEventListener("change", function (e) { handleFile(e.target.files[0]); e.target.value = ""; });
+  var drop = $("drop");
+  ["dragenter", "dragover"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
+  drop.addEventListener("drop", function (e) { handleFile(e.dataTransfer.files[0]); });
+  $("ticker").addEventListener("input", function () { updateLinks(); if (!state.isSample) render(); save("ticker", state.ticker); });
+  $("sampleBtn").addEventListener("click", function () { state.data = sampleData(); state.isSample = true; save("data", null); render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+  $("posIn").addEventListener("click", function () { state.position = "in"; save("position", "in"); render(); });
+  $("posOut").addEventListener("click", function () { state.position = "out"; save("position", "out"); render(); });
+  document.querySelectorAll("[data-range]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.range = +b.getAttribute("data-range"); save("range", state.range);
+      document.querySelectorAll("[data-range]").forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+      render();
+    });
+  });
+  var fields = { setWindow: "window", setBand: "band", setCash: "cash", setStart: "start" };
+  Object.keys(fields).forEach(function (id) {
+    $(id).addEventListener("change", function () { state.settings[fields[id]] = $(id).value; save("settings", state.settings); render(); });
+  });
+  $("resetBtn").addEventListener("click", function () {
+    state.settings = Object.assign({}, DEFAULTS); save("settings", state.settings);
+    Object.keys(fields).forEach(function (id) { $(id).value = DEFAULTS[fields[id]]; });
+    render();
+  });
+  var resizeTimer;
+  window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
+
+  // ---------- start ----------
+  var saved = load("data");
+  if (saved && saved.dates && saved.dates.length > 260) { state.data = { dates: saved.dates, closes: saved.closes }; state.isSample = false; state.ticker = saved.ticker || "SPY"; }
+  else state.data = sampleData();
+  state.position = load("position") || "in";
+  var r = load("range"); if (r === 0 || r === 1 || r === 5) state.range = r;
+  document.querySelectorAll("[data-range]").forEach(function (o) { o.setAttribute("aria-pressed", String(+o.getAttribute("data-range") === state.range)); });
+  var st = load("settings"); if (st) state.settings = Object.assign({}, DEFAULTS, st);
+  Object.keys(fields).forEach(function (id) { $(id).value = state.settings[fields[id]]; });
+  $("ticker").value = load("ticker") || state.ticker;
+  updateLinks();
+  render();
+})();
+</script>
